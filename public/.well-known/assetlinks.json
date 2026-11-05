@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "dev.pages.masari_app_42n.twa",
+    "sha256_cert_fingerprints": ["E2:E8:B9:4D:1D:9F:EF:5A:A6:17:98:1E:20:11:E5:12:81:84:D5:76:C9:5F:6A:4B:D6:52:DA:4E:A2:12:A7:17"]
+  }
+}]
