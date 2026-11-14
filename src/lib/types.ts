@@ -78,8 +78,9 @@ export const CATEGORY_COLORS = [
 export type Budget = {
   id: string
   user_id: string
-  category_id: string | null // null = overall monthly budget
-  month: string // YYYY-MM-01
+  category_id: string | null // null = overall budget
+  month: string | null // legacy YYYY-MM-01 (null for period budgets)
+  period_id: string | null
   limit_amount: number
   rollover: boolean
 }
@@ -100,6 +101,34 @@ export type SavingsRow = {
   user_id: string
   month: string // YYYY-MM-01
   amount: number
+  note: string | null
+  created_at: string
+}
+
+export type PeriodSnapshot = {
+  home_currency: string
+  started_at: string
+  closed_at: string
+  days: number
+  tx_count: number
+  income: number // planned income (sources) at close
+  received: number // income actually logged
+  spent: number
+  planned: number
+  saved: number // received>0 ? received − spent : income − spent
+  by_category: Array<{ category_id: string | null; name: string; color: string | null; spent: number; planned: number | null }>
+  top_merchants: Array<{ merchant: string; spent: number; count: number }>
+  balances: Array<{ account_id: string; name: string; currency: string; balance: number }>
+}
+
+export type Period = {
+  id: string
+  user_id: string
+  name: string
+  started_at: string
+  closed_at: string | null
+  snapshot: PeriodSnapshot | null
+  saved_override: number | null
   note: string | null
   created_at: string
 }

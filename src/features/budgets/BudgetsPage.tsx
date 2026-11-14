@@ -10,19 +10,24 @@ import { CategoryDot } from '@/components/CategoryDot'
 import { useToast } from '@/components/Toast'
 import { CURRENCIES } from '@/lib/types'
 import { formatMinor, toMinor } from '@/lib/money'
-import { monthLabel, shiftMonth } from '@/lib/dates'
+import { format } from 'date-fns'
 import { cn } from '@/lib/cn'
 import { useCategories } from '@/features/categories/useCategories'
-import { useMonthSummary } from '@/features/home/useMonthSummary'
-import { useCopyBudgets, useSetBudget } from './useBudgets'
+import { usePeriodSummary } from '@/features/periods/usePeriodSummary'
+import { useCurrentPeriod } from '@/features/periods/usePeriods'
+import { useCopyPeriodBudgets, useSetPeriodBudget } from './usePeriodBudgets'
+import { monthStartKey } from '@/lib/dates'
 import { useCreateIncomeSource, useDeleteIncomeSource, useIncomeSources, useUpdateIncomeSource } from '@/features/income/useIncomeSources'
 
 export function BudgetsPage() {
-  const [month, setMonth] = useState(() => new Date())
-  const s = useMonthSummary(month)
+  const { periods } = useCurrentPeriod()
+  const [idx, setIdx] = useState(0) // 0 = open period, 1 = previous, …
+  const selected = periods[idx] ?? periods[0] ?? null
+  const previous = periods[idx + 1] ?? null
+  const s = usePeriodSummary(selected, previous)
   const { data: categories = [] } = useCategories()
-  const setBudget = useSetBudget()
-  const copy = useCopyBudgets()
+  const setBudget = useSetPeriodBudget()
+  const copy = useCopyPeriodBudgets()
   const { toast } = useToast()
 
   const expenseCats = useMemo(() => categories.filter((c) => c.kind === 'expense'), [categories])
@@ -31,21 +36,30 @@ export function BudgetsPage() {
   const hasLines = s.budgets.length > 0
 
   const commit = async (category_id: string | null, minor: number | null) => {
+    if (!selected) return
     try {
-      await setBudget.mutateAsync({ month, category_id, limit_amount: minor })
+      await setBudget.mutateAsync({ periodId: selected.id, category_id, limit_amount: minor })
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not save', 'error')
     }
   }
 
   const copyPrev = async () => {
+    if (!selected) return
     try {
-      const n = await copy.mutateAsync({ from: shiftMonth(month, -1), to: month })
-      toast(n ? `Copied ${n} line${n > 1 ? 's' : ''} from ${monthLabel(shiftMonth(month, -1))}` : 'Nothing to copy from last month')
+      // Previous period if there is one; otherwise the legacy calendar-month budget for the period's start month.
+      const n = previous
+        ? await copy.mutateAsync({ fromPeriodId: previous.id, toPeriodId: selected.id })
+        : await copy.mutateAsync({ fromMonth: monthStartKey(new Date(selected.started_at)), toPeriodId: selected.id })
+      toast(n ? `Copied ${n} line${n > 1 ? 's' : ''} from ${previous ? previous.name : 'your previous budget'}` : 'Nothing to copy')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not copy', 'error')
     }
   }
+
+  const rangeLabel = selected
+    ? `${format(new Date(selected.started_at), 'd MMM')} → ${selected.closed_at ? format(new Date(selected.closed_at), 'd MMM') : 'now'}`
+    : ''
 
   // Rows: every expense category, with its planned line (if any) and spent.
   const rows = expenseCats.map((c) => {
@@ -59,13 +73,14 @@ export function BudgetsPage() {
     <>
       <PageHeader
         title="Budget"
+        subtitle={rangeLabel}
         action={
           <div className="flex items-center gap-1">
-            <button onClick={() => setMonth((m) => shiftMonth(m, -1))} className="h-9 w-9 rounded-lg hover:bg-surface-2 flex items-center justify-center" aria-label="Previous month">
+            <button onClick={() => setIdx((i) => Math.min(periods.length - 1, i + 1))} disabled={idx >= periods.length - 1} className="h-9 w-9 rounded-lg hover:bg-surface-2 flex items-center justify-center disabled:opacity-30" aria-label="Previous period">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <span className="text-sm font-medium min-w-28 text-center">{monthLabel(month)}</span>
-            <button onClick={() => setMonth((m) => shiftMonth(m, 1))} className="h-9 w-9 rounded-lg hover:bg-surface-2 flex items-center justify-center" aria-label="Next month">
+            <span className="text-sm font-medium min-w-24 text-center">{selected?.name ?? '—'}</span>
+            <button onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} className="h-9 w-9 rounded-lg hover:bg-surface-2 flex items-center justify-center disabled:opacity-30" aria-label="Next period">
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
@@ -101,7 +116,7 @@ export function BudgetsPage() {
           </div>
           {!hasLines && (
             <Button size="sm" variant="secondary" onClick={copyPrev} disabled={copy.isPending}>
-              <Copy className="h-4 w-4" /> Copy last month
+              <Copy className="h-4 w-4" /> Copy {previous ? previous.name : 'last budget'}
             </Button>
           )}
         </div>
@@ -110,8 +125,8 @@ export function BudgetsPage() {
         <div className="mt-4 rounded-xl bg-surface-2 p-3">
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <p className="text-sm font-medium">Overall monthly budget</p>
-              <p className="text-xs text-muted">{overallLine ? 'For this month' : s.plannedIsFallback && s.planned > 0 ? 'Using your default from Settings' : 'Leave empty to use the category total'}</p>
+              <p className="text-sm font-medium">Overall budget for {selected?.name ?? 'this period'}</p>
+              <p className="text-xs text-muted">{overallLine ? 'Set for this period' : s.plannedIsFallback && s.planned > 0 ? 'Using your default from Settings' : 'Leave empty to use the category total'}</p>
             </div>
             <div className="w-32">
               <MoneyInput valueMinor={overallLine?.limit_amount ?? null} currency={s.home} onCommit={(v) => commit(null, v)} placeholder={s.planned > 0 && !overallLine ? String(s.planned / 100) : '—'} />

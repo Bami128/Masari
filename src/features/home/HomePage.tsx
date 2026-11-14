@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Settings, Sparkles } from 'lucide-react'
+import { ArrowRight, CalendarCheck, Settings, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Card, CardTitle } from '@/components/Card'
@@ -9,14 +9,15 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/Button'
 import { ProgressBar } from '@/components/ProgressBar'
 import { formatMinor } from '@/lib/money'
-import { daysLeftInMonth } from '@/lib/dates'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/features/profile/useProfile'
 import { useCategories } from '@/features/categories/useCategories'
 import { useRecentTransactions } from '@/features/transactions/useTransactions'
 import { TransactionRow } from '@/features/transactions/TransactionRow'
 import { useQuickAdd } from '@/features/quickadd/QuickAddContext'
-import { useMonthSummary } from './useMonthSummary'
+import { usePeriodSummary } from '@/features/periods/usePeriodSummary'
+import { useCurrentPeriod } from '@/features/periods/usePeriods'
+import { ClosePeriodSheet } from '@/features/periods/ClosePeriodSheet'
 import { AccountsCard } from '@/features/accounts/AccountsCard'
 
 export function HomePage() {
@@ -26,7 +27,10 @@ export function HomePage() {
   const { data: recent = [] } = useRecentTransactions(5)
   const { openQuick, openEdit } = useQuickAdd()
   const now = new Date()
-  const s = useMonthSummary(now)
+  const { period, periods } = useCurrentPeriod()
+  const previous = periods.find((p) => p.closed_at !== null) ?? null
+  const s = usePeriodSummary(period, previous)
+  const [closing, setClosing] = useState(false)
 
   const firstName =
     profile?.display_name?.split(' ')[0] ??
@@ -56,7 +60,11 @@ export function HomePage() {
     <>
       <PageHeader
         title={`${greeting}, ${firstName}`}
-        subtitle={`${format(now, 'MMMM')} · ${daysLeftInMonth(now)} days left`}
+        subtitle={
+          period
+            ? `${period.name} · day ${s.dayOf}${s.daysLeft !== null ? (s.overdue ? ' · payday overdue?' : ` · ~${s.daysLeft} days to payday`) : ''}`
+            : format(now, 'MMMM')
+        }
         action={
           <Link to="/settings" aria-label="Settings" className="md:hidden h-10 w-10 rounded-xl bg-surface border border-line flex items-center justify-center text-ink-2">
             <Settings className="h-5 w-5" />
@@ -68,7 +76,10 @@ export function HomePage() {
       <div className="rounded-2xl bg-hero text-white p-5 shadow-lg shadow-hero/15">
         {hasPlan ? (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Left to spend this month</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Left to spend this period</p>
+              {period && <CloseButton onClick={() => setClosing(true)} />}
+            </div>
             <p className={cn('mt-1.5 text-4xl font-semibold tracking-tight tabular-nums', s.left < 0 && 'text-red-300')}>
               {formatMinor(s.left, s.home)}
             </p>
@@ -83,14 +94,17 @@ export function HomePage() {
             </div>
             {s.safeToday !== null && (
               <div className="mt-4 pt-4 border-t border-white/10 flex items-baseline justify-between">
-                <span className="text-sm text-white/75">Safe to spend today</span>
+                <span className="text-sm text-white/75">Safe to spend today{s.daysLeft !== null && <span className="text-white/45"> · {s.daysLeft}d left</span>}</span>
                 <span className="text-xl font-semibold tabular-nums">{formatMinor(s.safeToday, s.home)}</span>
               </div>
             )}
           </>
         ) : (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Spent this month</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Spent this period</p>
+              {period && <CloseButton onClick={() => setClosing(true)} />}
+            </div>
             <p className="mt-1.5 text-4xl font-semibold tracking-tight tabular-nums">{formatMinor(s.spent, s.home)}</p>
             <p className="mt-3 text-sm text-white/75">
               Set a monthly budget to see how much you have left.{' '}
@@ -187,6 +201,19 @@ export function HomePage() {
           </div>
         )}
       </Card>
+
+      {period && <ClosePeriodSheet open={closing} onClose={() => setClosing(false)} period={period} previous={previous} all={periods} />}
     </>
+  )
+}
+
+function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-1 text-xs font-medium text-white transition-colors"
+    >
+      <CalendarCheck className="h-3.5 w-3.5" /> Close month
+    </button>
   )
 }

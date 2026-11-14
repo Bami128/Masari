@@ -47,7 +47,7 @@ export function SettingsPage() {
           </Button>
         </Card>
 
-        <p className="text-center text-xs text-muted-2">Masari v0.6</p>
+        <p className="text-center text-xs text-muted-2">Masari v0.7</p>
       </div>
     </>
   )

@@ -7,19 +7,29 @@ import { Button } from '@/components/Button'
 import { Input } from '@/components/Field'
 import { Spinner } from '@/components/Spinner'
 import { formatMinor } from '@/lib/money'
-import { dayLabel, monthLabel, shiftMonth } from '@/lib/dates'
+import { dayLabel } from '@/lib/dates'
+import { format } from 'date-fns'
+import { useCurrentPeriod } from '@/features/periods/usePeriods'
+import { useRangeTransactions } from './useRangeTransactions'
 import { useProfile } from '@/features/profile/useProfile'
 import { useCategories } from '@/features/categories/useCategories'
 import { useQuickAdd } from '@/features/quickadd/QuickAddContext'
-import { useMonthTransactions } from './useTransactions'
 import { TransactionRow } from './TransactionRow'
 
 export function TransactionsPage() {
-  const [month, setMonth] = useState(() => new Date())
+  const { periods } = useCurrentPeriod()
+  const [idx, setIdx] = useState(0)
+  const selected = periods[idx] ?? periods[0] ?? null
   const [q, setQ] = useState('')
   const { data: profile } = useProfile()
   const { data: categories = [] } = useCategories()
-  const { data: txs = [], isLoading } = useMonthTransactions(month)
+  const { data: txs = [], isLoading } = useRangeTransactions(
+    selected ? new Date(selected.started_at) : null,
+    selected?.closed_at ? new Date(selected.closed_at) : null,
+  )
+  const rangeLabel = selected
+    ? `${format(new Date(selected.started_at), 'd MMM')} → ${selected.closed_at ? format(new Date(selected.closed_at), 'd MMM') : 'now'}`
+    : ''
   const { openQuick, openEdit } = useQuickAdd()
   const home = profile?.home_currency ?? 'QAR'
 
@@ -68,17 +78,22 @@ export function TransactionsPage() {
 
       <div className="flex items-center justify-between mb-3">
         <button
-          onClick={() => setMonth((m) => shiftMonth(m, -1))}
-          className="h-10 w-10 rounded-xl hover:bg-surface-2 flex items-center justify-center"
-          aria-label="Previous month"
+          onClick={() => setIdx((i) => Math.min(periods.length - 1, i + 1))}
+          disabled={idx >= periods.length - 1}
+          className="h-10 w-10 rounded-xl hover:bg-surface-2 flex items-center justify-center disabled:opacity-30"
+          aria-label="Previous period"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <span className="font-medium">{monthLabel(month)}</span>
+        <div className="text-center">
+          <p className="font-medium leading-tight">{selected?.name ?? '—'}</p>
+          <p className="text-xs text-muted">{rangeLabel}{selected && !selected.closed_at ? ' · open' : ''}</p>
+        </div>
         <button
-          onClick={() => setMonth((m) => shiftMonth(m, 1))}
-          className="h-10 w-10 rounded-xl hover:bg-surface-2 flex items-center justify-center"
-          aria-label="Next month"
+          onClick={() => setIdx((i) => Math.max(0, i - 1))}
+          disabled={idx === 0}
+          className="h-10 w-10 rounded-xl hover:bg-surface-2 flex items-center justify-center disabled:opacity-30"
+          aria-label="Next period"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -110,7 +125,7 @@ export function TransactionsPage() {
         <Card>
           <EmptyState
             icon={List}
-            title={q ? 'Nothing matches' : `Nothing in ${monthLabel(month)}`}
+            title={q ? 'Nothing matches' : `Nothing in ${selected?.name ?? 'this period'}`}
             body={q ? undefined : 'Tap + and type something like "coffee 15".'}
             action={!q ? <Button size="sm" onClick={openQuick}>Add one</Button> : undefined}
           />

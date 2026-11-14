@@ -17,12 +17,13 @@ import { useIncomeSources } from '@/features/income/useIncomeSources'
 import { useYearBudgets } from '@/features/budgets/useBudgets'
 import { useYearTransactions } from '@/features/transactions/useYearTransactions'
 import { useSetSavings, useYearSavings } from '@/features/savings/useSavings'
+import { PeriodsReport } from './PeriodsReport'
 
-type Tab = 'year' | 'savings'
+type Tab = 'periods' | 'year' | 'savings'
 
 export function ReportsPage() {
   const [year, setYear] = useState(() => new Date().getFullYear())
-  const [tab, setTab] = useState<Tab>('year')
+  const [tab, setTab] = useState<Tab>('periods')
   const { data: profile } = useProfile()
   const { data: categories = [] } = useCategories()
   const { data: sources = [] } = useIncomeSources()
@@ -131,6 +132,7 @@ export function ReportsPage() {
       <PageHeader
         title="Reports"
         action={
+          tab === 'periods' ? undefined : (
           <div className="flex items-center gap-1">
             <button onClick={() => setYear((y) => y - 1)} className="h-9 w-9 rounded-lg hover:bg-surface-2 flex items-center justify-center" aria-label="Previous year">
               <ChevronLeft className="h-5 w-5" />
@@ -140,6 +142,7 @@ export function ReportsPage() {
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
+          )
         }
       />
 
@@ -148,12 +151,16 @@ export function ReportsPage() {
           value={tab}
           onChange={setTab}
           options={[
+            { value: 'periods', label: 'Periods' },
             { value: 'year', label: 'Year grid' },
-            { value: 'savings', label: 'Savings' },
+            { value: 'savings', label: 'Calendar' },
           ]}
         />
       </div>
 
+      {tab === 'periods' && <PeriodsReport />}
+
+      {tab !== 'periods' && (
       <div className="grid grid-cols-3 gap-3 mb-4">
         <Card className="p-3">
           <CardTitle>Spent</CardTitle>
@@ -168,8 +175,9 @@ export function ReportsPage() {
           <p className={cn('mt-1 font-semibold tabular-nums', yearTotals.saved < 0 && 'text-neg')}>{monthlyIncome > 0 ? formatMinor(yearTotals.saved, home, { compact: true }) : '—'}</p>
         </Card>
       </div>
+      )}
 
-      {tab === 'year' ? (
+      {tab === 'periods' ? null : tab === 'year' ? (
         <Card className="p-0 overflow-hidden">
           {!isLoading && catRows.length === 0 ? (
             <EmptyState icon={PieIcon} title={`Nothing in ${year}`} body="Log a few transactions and the category × month grid fills in here." />
@@ -236,7 +244,7 @@ export function ReportsPage() {
         <>
           <Card>
             <CardTitle>Savings — forecast vs actual</CardTitle>
-            <p className="text-xs text-muted mt-0.5">Forecast = cumulative (income − planned). Actual = cumulative (income − spent), or your override.</p>
+            <p className="text-xs text-muted mt-0.5">Calendar-month view. Forecast = cumulative (income − planned). Actual = cumulative (income − spent), or your override. For pay-cycle periods use the Periods tab.</p>
             {monthlyIncome <= 0 ? (
               <p className="mt-4 text-sm text-muted">Add an income source on the Budget page to see this.</p>
             ) : (
