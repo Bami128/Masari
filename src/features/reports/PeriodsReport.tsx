@@ -16,6 +16,8 @@ import { useProfile } from '@/features/profile/useProfile'
 
 type Row = { period: Period; snap: PeriodSnapshot; saved: number; isOpen: boolean }
 
+const effOf = (snap: PeriodSnapshot) => snap.effective_income ?? (snap.received > 0 ? snap.received : snap.income)
+
 export function PeriodsReport() {
   const { periods, period: open } = useCurrentPeriod()
   const { data: profile } = useProfile()
@@ -32,7 +34,7 @@ export function PeriodsReport() {
       .map((p) => ({ period: p, snap: p.snapshot as PeriodSnapshot, saved: p.saved_override ?? (p.snapshot as PeriodSnapshot).saved, isOpen: false }))
       .reverse()
     if (open) {
-      const eff = live.received > 0 ? live.received : live.income
+      const eff = live.effectiveIncome
       r.push({
         period: open,
         isOpen: true,
@@ -45,6 +47,7 @@ export function PeriodsReport() {
           tx_count: live.txCount,
           income: live.income,
           received: live.received,
+          effective_income: eff,
           spent: live.spent,
           planned: live.planned,
           saved: eff - live.spent,
@@ -60,7 +63,7 @@ export function PeriodsReport() {
   const chart = useMemo(() => {
     let cum = 0
     return rows.slice(-12).map((r) => {
-      const eff = r.snap.received > 0 ? r.snap.received : r.snap.income
+      const eff = effOf(r.snap)
       cum += r.saved
       return {
         name: r.period.name.replace(/ \d{4}/, '') + (r.isOpen ? '*' : ''),
@@ -162,7 +165,7 @@ export function PeriodsReport() {
       {/* Period cards */}
       <div className="flex flex-col gap-3">
         {[...rows].reverse().map(({ period: p, snap, saved, isOpen }) => {
-          const eff = snap.received > 0 ? snap.received : snap.income
+          const eff = effOf(snap)
           const isExp = expanded === p.id
           return (
             <Card key={p.id} className={cn(isOpen && 'border-accent/40')}>

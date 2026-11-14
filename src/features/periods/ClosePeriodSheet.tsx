@@ -22,7 +22,7 @@ export function ClosePeriodSheet({ open, onClose, period, previous, all }: { ope
   const [logSalary, setLogSalary] = useState(salary.sources.length > 0)
   const [busy, setBusy] = useState(false)
 
-  const effectiveIncome = s.received > 0 ? s.received : s.income
+  const effectiveIncome = s.effectiveIncome
   const saved = effectiveIncome - s.spent
 
   const confirm = async () => {
@@ -48,7 +48,7 @@ export function ClosePeriodSheet({ open, onClose, period, previous, all }: { ope
         </p>
 
         <div className="rounded-2xl bg-hero text-white p-4 grid grid-cols-3 gap-3">
-          <Stat label="Income" value={effectiveIncome > 0 ? formatMinor(effectiveIncome, s.home, { compact: true }) : '—'} sub={s.received > 0 ? 'logged' : 'planned'} />
+          <Stat label="Income" value={effectiveIncome > 0 ? formatMinor(effectiveIncome, s.home, { compact: true }) : '—'} sub={s.salaryLogged ? 'logged' : 'planned'} />
           <Stat label="Spent" value={formatMinor(s.spent, s.home, { compact: true })} sub={`${s.txCount} transactions`} />
           <Stat label="Saved" value={effectiveIncome > 0 ? formatMinor(saved, s.home, { compact: true }) : '—'} sub={s.planned > 0 ? (s.left >= 0 ? `${formatMinor(s.left, s.home, { compact: true })} under budget` : `${formatMinor(-s.left, s.home, { compact: true })} over budget`) : ''} tone={saved < 0 ? 'neg' : 'pos'} />
         </div>

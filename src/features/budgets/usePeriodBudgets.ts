@@ -53,13 +53,29 @@ export function useCopyPeriodBudgets() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ fromPeriodId, fromMonth, toPeriodId }: { fromPeriodId?: string; fromMonth?: string; toPeriodId: string }) => {
-      let srcQ = supabase.from('budgets').select('*')
-      srcQ = fromPeriodId ? srcQ.eq('period_id', fromPeriodId) : srcQ.eq('month', fromMonth!).is('period_id', null)
-      const [{ data: src, error: e1 }, { data: dst, error: e2 }] = await Promise.all([srcQ, supabase.from('budgets').select('category_id').eq('period_id', toPeriodId)])
-      if (e1) throw e1
+      let src: Budget[] = []
+      if (fromPeriodId) {
+        const { data, error } = await supabase.from('budgets').select('*').eq('period_id', fromPeriodId)
+        if (error) throw error
+        src = data as Budget[]
+      } else {
+        const { data, error } = await supabase.from('budgets').select('*').eq('month', fromMonth!).is('period_id', null)
+        if (error) throw error
+        src = data as Budget[]
+        if (src.length === 0) {
+          // Fall back to whatever legacy month exists most recently.
+          const { data: latest } = await supabase.from('budgets').select('month').is('period_id', null).not('month', 'is', null).order('month', { ascending: false }).limit(1).maybeSingle()
+          if (latest?.month) {
+            const { data: d2, error: e3 } = await supabase.from('budgets').select('*').eq('month', latest.month).is('period_id', null)
+            if (e3) throw e3
+            src = d2 as Budget[]
+          }
+        }
+      }
+      const { data: dst, error: e2 } = await supabase.from('budgets').select('category_id').eq('period_id', toPeriodId)
       if (e2) throw e2
       const have = new Set((dst ?? []).map((b) => b.category_id ?? '__overall__'))
-      const rows = (src as Budget[])
+      const rows = src
         .filter((b) => !have.has(b.category_id ?? '__overall__'))
         .map((b) => ({ user_id: user!.id, period_id: toPeriodId, category_id: b.category_id, limit_amount: b.limit_amount, rollover: b.rollover }))
       if (rows.length === 0) return 0

@@ -36,6 +36,8 @@ export function usePeriodSummary(period: Period | null, previous: Period | null 
 
     let spent = 0
     let received = 0
+    let salaryLogged = false
+    const sourceNames = new Set(active.map((x) => x.name.trim().toLowerCase()))
     const spentByCategory = new Map<string, number>()
     const byMerchant = new Map<string, { spent: number; count: number }>()
     for (const t of txs) {
@@ -48,7 +50,10 @@ export function usePeriodSummary(period: Period | null, previous: Period | null 
           const cur = byMerchant.get(m) ?? { spent: 0, count: 0 }
           byMerchant.set(m, { spent: cur.spent + t.amount_home, count: cur.count + 1 })
         }
-      } else if (t.type === 'income') received += t.amount_home
+      } else if (t.type === 'income') {
+        received += t.amount_home
+        if (t.merchant && sourceNames.has(t.merchant.trim().toLowerCase())) salaryLogged = true
+      }
     }
 
     const now = new Date()
@@ -62,8 +67,9 @@ export function usePeriodSummary(period: Period | null, previous: Period | null 
     const left = planned - spent
     const safeToday = isOpen && planned > 0 && daysLeft ? Math.max(0, Math.floor(left / daysLeft)) : null
 
-    // Which income number to use for "saved": actual received if any salary was logged, else the plan.
-    const effectiveIncome = received > 0 ? received : income
+    // Denominator for "saved" and "% of income": the plan until the salary itself is logged,
+    // then what actually came in. A stray refund logged as income must not replace the salary.
+    const effectiveIncome = salaryLogged || (active.length === 0 && received > 0) ? received : income
     const actualSaved = period?.saved_override ?? effectiveIncome - spent
 
     const catById = new Map(categories.map((c) => [c.id, c]))
@@ -97,6 +103,8 @@ export function usePeriodSummary(period: Period | null, previous: Period | null 
       categoryPlanned,
       spent,
       received,
+      effectiveIncome,
+      salaryLogged,
       left,
       shouldSave: income - planned,
       actualSaved,
@@ -126,7 +134,7 @@ export function buildSnapshot(
   closedAt: Date,
 ): PeriodSnapshot {
   const start = new Date(s.period!.started_at)
-  const effectiveIncome = s.received > 0 ? s.received : s.income
+  const effectiveIncome = s.effectiveIncome
   return {
     home_currency: s.home,
     started_at: s.period!.started_at,
@@ -135,6 +143,7 @@ export function buildSnapshot(
     tx_count: s.txCount,
     income: s.income,
     received: s.received,
+    effective_income: effectiveIncome,
     spent: s.spent,
     planned: s.planned,
     saved: effectiveIncome - s.spent,

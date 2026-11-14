@@ -144,7 +144,7 @@ export function HomePage() {
           <p className={cn('mt-1 text-lg font-semibold tabular-nums', s.pctOfIncome !== null && s.pctOfIncome > 1 && 'text-neg')}>
             {s.pctOfIncome !== null ? `${Math.round(s.pctOfIncome * 100)}%` : '—'}
           </p>
-          {s.pctOfIncome !== null ? <ProgressBar value={s.spent} max={s.income} className="mt-2 h-1.5" /> : <p className="text-xs text-muted">needs income</p>}
+          {s.pctOfIncome !== null ? <ProgressBar value={s.spent} max={s.effectiveIncome} className="mt-2 h-1.5" /> : <p className="text-xs text-muted">needs income</p>}
         </Card>
       </div>
 

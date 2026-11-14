@@ -49,10 +49,26 @@ export function useCurrentPeriod() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const firstTx = first?.occurred_at ? new Date(first.occurred_at as string) : null
       const startedAt = firstTx && firstTx < monthStart ? firstTx : monthStart
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from('periods')
         .insert({ user_id: user!.id, name: periodName(startedAt, periods.data ?? []), started_at: startedAt.toISOString() })
+        .select('id')
+        .single()
       if (error && error.code !== '23505') throw error
+      if (created?.id) {
+        // Upgrade path: the user's existing calendar-month budget (latest month) becomes this period's budget.
+        const { data: latest } = await supabase
+          .from('budgets')
+          .select('month')
+          .is('period_id', null)
+          .not('month', 'is', null)
+          .order('month', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (latest?.month) {
+          await supabase.from('budgets').update({ period_id: created.id }).is('period_id', null).eq('month', latest.month)
+        }
+      }
     },
     onSettled: () => qc.invalidateQueries({ queryKey: periodsKey(user!.id) }),
   })

@@ -113,6 +113,7 @@ export type PeriodSnapshot = {
   tx_count: number
   income: number // planned income (sources) at close
   received: number // income actually logged
+  effective_income?: number // what "saved" and % were computed against
   spent: number
   planned: number
   saved: number // received>0 ? received − spent : income − spent
